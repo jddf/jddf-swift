@@ -7,11 +7,9 @@ let package = Package(
     products: [
         .library(name: "JDDF", targets: ["JDDF"]),
     ],
-    dependencies: [
-        .package(url: "https://github.com/SwiftyJSON/SwiftyJSON.git", from: "4.0.0"),
-    ],
+    dependencies: [],
     targets: [
-        .target(name: "JDDF", dependencies: ["SwiftyJSON"]),
+        .target(name: "JDDF", dependencies: []),
         .testTarget(name: "JDDFTests", dependencies: ["JDDF"]),
     ]
 )

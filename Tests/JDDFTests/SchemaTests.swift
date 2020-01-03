@@ -1,71 +1,70 @@
 import XCTest
-import SwiftyJSON
 @testable import JDDF
 
 final class SchemaTests: XCTestCase {
     func testSerializeDeserialize() {
         XCTAssertEqual(
-            Schema(json: JSON([
+            try! Schema(json: [
                 "definitions": [
-                    "foo": [],
+                    "foo": [:],
                 ],
-            ])),
+            ]),
             Schema(definitions: ["foo": Schema()], form: Form.empty)
         )
 
         XCTAssertEqual(
-            Schema(json: JSON([
+            try! Schema(json: [
                 "definitions": [
-                    "foo": [],
+                    "foo": [:],
                 ],
                 "ref": "foo",
-            ])),
+            ]),
             Schema(definitions: ["foo": Schema()], form: Form.ref("foo"))
         )
 
         XCTAssertEqual(
-            Schema(json: JSON([
+            try! Schema(json: [
                 "definitions": [
-                    "foo": [],
+                    "foo": [:],
                 ],
                 "type": "uint8",
-            ])),
+            ]),
             Schema(definitions: ["foo": Schema()], form: Form.type(Type.uint8))
         )
 
         XCTAssertEqual(
-            Schema(json: JSON([
+            try! Schema(json: [
                 "definitions": [
-                    "foo": [],
+                    "foo": [:],
                 ],
                 "enum": ["foo"],
-            ])),
+            ]),
             Schema(definitions: ["foo": Schema()], form: Form.enum(["foo"]))
         )
 
         XCTAssertEqual(
-            Schema(json: JSON([
+            try! Schema(json: [
                 "definitions": [
-                    "foo": [],
+                    "foo": [:],
                 ],
-                "elements": [],
-            ])),
+                "elements": [:],
+            ]),
             Schema(definitions: ["foo": Schema()], form: Form.elements(Schema()))
         )
 
         XCTAssertEqual(
-            Schema(json: JSON([
+            try! Schema(json: [
                 "definitions": [
-                    "foo": [],
+                    "foo": [:],
                 ],
                 "properties": [
-                    "foo": [],
+                    "foo": [:],
                 ],
                 "optionalProperties": [
-                    "foo": [],
+                    "foo": [:],
                 ],
                 "additionalProperties": true
-            ])),
+            ]),
             Schema(
                 definitions: ["foo": Schema()],
                 form: Form.properties(
@@ -77,27 +76,27 @@ final class SchemaTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            Schema(json: JSON([
+            try! Schema(json: [
                 "definitions": [
-                    "foo": [],
+                    "foo": [:],
                 ],
-                "values": [],
-            ])),
+                "values": [:],
+            ]),
             Schema(definitions: ["foo": Schema()], form: Form.values(Schema()))
         )
 
         XCTAssertEqual(
-            Schema(json: JSON([
+            try! Schema(json: [
                 "definitions": [
-                    "foo": [],
+                    "foo": [:],
                 ],
                 "discriminator": [
                     "tag": "foo",
                     "mapping": [
-                        "foo": [],
+                        "foo": [:],
                     ],
                 ],
-            ])),
+            ]),
             Schema(
                 definitions: ["foo": Schema()],
                 form: Form.discriminator(tag: "foo", mapping: ["foo": Schema()])
@@ -105,7 +104,27 @@ final class SchemaTests: XCTestCase {
         )
     }
 
+    func testInvalidSchemas() throws {
+        let testCaseData = try! String(contentsOfFile: "spec/tests/invalid-schemas.json")
+        let testCases = try! JSONSerialization.jsonObject(with: testCaseData.data(using: .utf8)!)
+
+        for testCase in testCases as! [[String: Any]] {
+            var ok = false
+
+            do {
+                try Schema(json: testCase["schema"]!).validate()
+            } catch JDDFError.invalidSchema(_) {
+                ok = true
+            } catch {
+                throw error
+            }
+
+            XCTAssert(ok, testCase["name"]! as! String)
+        }
+    }
+
     static var allTests = [
         ("testSerializeDeserialize", testSerializeDeserialize),
+        ("testInvalidSchemas", testInvalidSchemas),
     ]
 }
