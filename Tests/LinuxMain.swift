@@ -1,6 +1,6 @@
 import XCTest
 
-import jddfTests
+import JDDFTests
 
 var tests = [XCTestCaseEntry]()
 tests += jddfTests.allTests()

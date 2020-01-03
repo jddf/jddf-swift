@@ -1,6 +1,6 @@
 import XCTest
 import SwiftyJSON
-@testable import jddf
+@testable import JDDF
 
 final class SchemaTests: XCTestCase {
     func testSerializeDeserialize() {
