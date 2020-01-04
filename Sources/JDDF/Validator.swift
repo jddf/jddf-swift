@@ -50,7 +50,7 @@ private struct VM {
     public var errors: [ValidationError]
 
     @available(macOS 10.13, *)
-    public mutating func validate(schema: Schema, instance: Any) throws {
+    public mutating func validate(schema: Schema, instance: Any, parentTag: String? = nil) throws {
         switch schema.form {
         case .empty:
             break
@@ -98,6 +98,16 @@ private struct VM {
                 }
             }
             self.popSchemaToken()
+        case .enum(let values):
+            self.pushSchemaToken("enum")
+            if let instance = instance as? String {
+                if !values.contains(instance) {
+                    self.pushError()
+                }
+            } else {
+                self.pushError()
+            }
+            self.popSchemaToken()
         case .elements(let subSchema):
             self.pushSchemaToken("elements")
             if let instance = instance as? [Any] {
@@ -110,8 +120,107 @@ private struct VM {
                 self.pushError()
             }
             self.popSchemaToken()
-        default:
-            break // TODO
+        case .properties(let required, let optional, let additional):
+            if let instance = instance as? [String: Any] {
+                if let required = required {
+                    self.pushSchemaToken("properties")
+                    for (key, subSchema) in required {
+                        self.pushSchemaToken(key)
+                        if let subInstance = instance[key] {
+                            self.pushInstanceToken(key)
+                            try self.validate(schema: subSchema, instance: subInstance)
+                            self.popInstanceToken()
+                        } else {
+                            self.pushError()
+                        }
+                        self.popSchemaToken()
+                    }
+                    self.popSchemaToken()
+                }
+
+                if let optional = optional {
+                    self.pushSchemaToken("optionalProperties")
+                    for (key, subSchema) in optional {
+                        self.pushSchemaToken(key)
+                        if let subInstance = instance[key] {
+                            self.pushInstanceToken(key)
+                            try self.validate(schema: subSchema, instance: subInstance)
+                            self.popInstanceToken()
+                        }
+                        self.popSchemaToken()
+                    }
+                    self.popSchemaToken()
+                }
+
+                if !additional {
+                    for key in instance.keys {
+                        let inRequired = required != nil && required![key] != nil
+                        let inOptional = optional != nil && optional![key] != nil
+                        let isParentTag = parentTag != nil && key == parentTag
+
+                        if !inRequired && !inOptional && !isParentTag {
+                            self.pushInstanceToken(key)
+                            self.pushError()
+                            self.popInstanceToken()
+                        }
+                    }
+                }
+            } else {
+                if required != nil {
+                    self.pushSchemaToken("properties")
+                } else {
+                    self.pushSchemaToken("optionalProperties")
+                }
+
+                self.pushError()
+                self.popSchemaToken()
+            }
+        case .values(let subSchema):
+            self.pushSchemaToken("values")
+            if let instance = instance as? [String: Any] {
+                for (key, subInstance) in instance {
+                    self.pushInstanceToken(key)
+                    try self.validate(schema: subSchema, instance: subInstance)
+                    self.popInstanceToken()
+                }
+            } else {
+                self.pushError()
+            }
+            self.popSchemaToken()
+        case .discriminator(let tag, let mapping):
+            self.pushSchemaToken("discriminator")
+            if let instance = instance as? [String: Any] {
+                if let tagValue = instance[tag] {
+                    if let tagValue = tagValue as? String {
+                        if let subSchema = mapping[tagValue] {
+                            self.pushSchemaToken("mapping")
+                            self.pushSchemaToken(tagValue)
+                            try self.validate(schema: subSchema, instance: instance, parentTag: tag)
+                            self.popSchemaToken()
+                            self.popSchemaToken()
+                        } else {
+                            self.pushSchemaToken("mapping")
+                            self.pushInstanceToken(tag)
+                            self.pushError()
+                            self.popInstanceToken()
+                            self.popSchemaToken()
+                        }
+                    } else {
+                        self.pushSchemaToken("tag")
+                        self.pushInstanceToken(tag)
+                        self.pushError()
+                        self.popInstanceToken()
+                        self.popSchemaToken()
+                    }
+                } else {
+                    self.pushSchemaToken("tag")
+                    self.pushError()
+                    self.popSchemaToken()
+                }
+            } else {
+                self.pushError()
+            }
+            self.popSchemaToken()
         }
     }
 

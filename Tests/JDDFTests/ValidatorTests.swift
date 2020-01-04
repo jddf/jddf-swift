@@ -6,17 +6,13 @@ final class ValidatorTests: XCTestCase {
     func testValidationSpec() throws {
         let paths = try! FileManager.default.contentsOfDirectory(atPath: "spec/tests/validation")
         for path in paths {
-            if path != "003-type.json" {
-                continue
-            }
-
             let suitesData = try! String(contentsOfFile: "spec/tests/validation/\(path)")
             let suites = try! JSONSerialization.jsonObject(with: suitesData.data(using: .utf8)!)
 
             for suite in suites as! [[String: Any]] {
                 let schema = try! Schema(json: suite["schema"]!)
                 for (index, testCase) in (suite["instances"] as! [[String: Any]]).enumerated() {
-                    let expected = (testCase["errors"] as! [[String: Any]]).map({ (error: Any) -> ValidationError in
+                    var expected = (testCase["errors"] as! [[String: Any]]).map({ (error: Any) -> ValidationError in
                         let error = error as! [String: String]
                         let instancePath = error["instancePath"]!
                         let schemaPath = error["schemaPath"]!
@@ -27,10 +23,20 @@ final class ValidatorTests: XCTestCase {
                         )
                     })
 
-                    let actual = try! Validator().validate(
+                    var actual = try! Validator().validate(
                         schema: schema,
                         instance: testCase["instance"]!
                     )
+
+                    expected.sort {
+                        $0.schemaPath.joined() + $0.instancePath.joined()
+                            > $1.schemaPath.joined() + $1.instancePath.joined()
+                    }
+
+                    actual.sort {
+                        $0.schemaPath.joined() + $0.instancePath.joined()
+                            > $1.schemaPath.joined() + $1.instancePath.joined()
+                    }
 
                     XCTAssertEqual(actual, expected, "\(suite["name"] as! String)/\(index)")
                 }

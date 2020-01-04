@@ -80,7 +80,7 @@ struct Schema: Equatable, Hashable {
                     throw JDDFError.invalidSchema("invalid form")
                 }
 
-                var `required`: [String: Schema] = [:]
+                var `required`: [String: Schema]? = nil
                 if let properties = json["properties"] {
                     if let properties = properties as? [String: Any] {
                         `required` = try properties.mapValues { try Schema(json: $0)}
@@ -89,7 +89,7 @@ struct Schema: Equatable, Hashable {
                     }
                 }
 
-                var `optional`: [String: Schema] = [:]
+                var `optional`: [String: Schema]? = nil
                 if let properties = json["optionalProperties"] {
                     if let properties = properties as? [String: Any] {
                         `optional` = try properties.mapValues { try Schema(json: $0)}
