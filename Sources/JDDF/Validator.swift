@@ -25,7 +25,14 @@ struct Validator {
             errors: []
         )
 
-        try vm.validate(schema: schema, instance: instance)
+        do {
+            try vm.validate(schema: schema, instance: instance)
+        } catch MaxErrorsError.maxErrors {
+            // Intentionally left blank. This is just a circuit-breaker, not an
+            // actual error condition.
+        } catch {
+            throw error
+        }
 
         return vm.errors
     }
@@ -55,6 +62,10 @@ private struct VM {
         case .empty:
             break
         case .ref(let ref):
+            if self.schemaTokens.count == self.maxDepth {
+                throw JDDFError.maxDepthExceeded
+            }
+
             self.schemaTokens.append(["definitions", ref])
             try self.validate(schema: self.root.definitions![ref]!, instance: instance)
             _ = self.schemaTokens.popLast()
@@ -63,27 +74,27 @@ private struct VM {
             switch type {
             case .boolean:
                 if !(instance is Bool) {
-                    self.pushError()
+                    try self.pushError()
                 }
             case .float32, .float64:
                 if !(instance is Double) {
-                    self.pushError()
+                    try self.pushError()
                 }
             case .int8:
-                self.validateInt(min: -128, max: 127, instance: instance)
+                try self.validateInt(min: -128, max: 127, instance: instance)
             case .uint8:
-                self.validateInt(min: 0, max: 255, instance: instance)
+                try self.validateInt(min: 0, max: 255, instance: instance)
             case .int16:
-                self.validateInt(min: -32768, max: 32767, instance: instance)
+                try self.validateInt(min: -32768, max: 32767, instance: instance)
             case .uint16:
-                self.validateInt(min: 0, max: 65535, instance: instance)
+                try self.validateInt(min: 0, max: 65535, instance: instance)
             case .int32:
-                self.validateInt(min: -2147483648, max: 2147483647, instance: instance)
+                try self.validateInt(min: -2147483648, max: 2147483647, instance: instance)
             case .uint32:
-                self.validateInt(min: 0, max: 4294967295, instance: instance)
+                try self.validateInt(min: 0, max: 4294967295, instance: instance)
             case .string:
                 if !(instance is String) {
-                    self.pushError()
+                    try self.pushError()
                 }
             case .timestamp:
                 if let instance = instance as? String {
@@ -91,10 +102,10 @@ private struct VM {
                     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
                     if formatter.date(from: instance) == nil {
-                        self.pushError()
+                        try self.pushError()
                     }
                 } else {
-                    self.pushError()
+                    try self.pushError()
                 }
             }
             self.popSchemaToken()
@@ -102,10 +113,10 @@ private struct VM {
             self.pushSchemaToken("enum")
             if let instance = instance as? String {
                 if !values.contains(instance) {
-                    self.pushError()
+                    try self.pushError()
                 }
             } else {
-                self.pushError()
+                try self.pushError()
             }
             self.popSchemaToken()
         case .elements(let subSchema):
@@ -117,7 +128,7 @@ private struct VM {
                     self.popInstanceToken()
                 }
             } else {
-                self.pushError()
+                try self.pushError()
             }
             self.popSchemaToken()
         case .properties(let required, let optional, let additional):
@@ -131,7 +142,7 @@ private struct VM {
                             try self.validate(schema: subSchema, instance: subInstance)
                             self.popInstanceToken()
                         } else {
-                            self.pushError()
+                            try self.pushError()
                         }
                         self.popSchemaToken()
                     }
@@ -160,7 +171,7 @@ private struct VM {
 
                         if !inRequired && !inOptional && !isParentTag {
                             self.pushInstanceToken(key)
-                            self.pushError()
+                            try self.pushError()
                             self.popInstanceToken()
                         }
                     }
@@ -172,7 +183,7 @@ private struct VM {
                     self.pushSchemaToken("optionalProperties")
                 }
 
-                self.pushError()
+                try self.pushError()
                 self.popSchemaToken()
             }
         case .values(let subSchema):
@@ -184,7 +195,7 @@ private struct VM {
                     self.popInstanceToken()
                 }
             } else {
-                self.pushError()
+                try self.pushError()
             }
             self.popSchemaToken()
         case .discriminator(let tag, let mapping):
@@ -201,36 +212,36 @@ private struct VM {
                         } else {
                             self.pushSchemaToken("mapping")
                             self.pushInstanceToken(tag)
-                            self.pushError()
+                            try self.pushError()
                             self.popInstanceToken()
                             self.popSchemaToken()
                         }
                     } else {
                         self.pushSchemaToken("tag")
                         self.pushInstanceToken(tag)
-                        self.pushError()
+                        try self.pushError()
                         self.popInstanceToken()
                         self.popSchemaToken()
                     }
                 } else {
                     self.pushSchemaToken("tag")
-                    self.pushError()
+                    try self.pushError()
                     self.popSchemaToken()
                 }
             } else {
-                self.pushError()
+                try self.pushError()
             }
             self.popSchemaToken()
         }
     }
 
-    private mutating func validateInt(min: Double, max: Double, instance: Any) {
+    private mutating func validateInt(min: Double, max: Double, instance: Any) throws {
         if let instance = instance as? Double {
             if instance.rounded() != instance || instance < min || instance > max {
-                self.pushError()
+                try self.pushError()
             }
         } else {
-            self.pushError()
+            try self.pushError()
         }
     }
 
@@ -255,10 +266,18 @@ private struct VM {
         self.schemaTokens[self.schemaTokens.count - 1] = tokens
     }
 
-    private mutating func pushError() {
+    private mutating func pushError() throws {
         self.errors.append(ValidationError(
             instancePath: self.instanceTokens,
             schemaPath: self.schemaTokens.last!
         ))
+
+        if self.errors.count == self.maxErrors {
+            throw MaxErrorsError.maxErrors
+        }
     }
+}
+
+private enum MaxErrorsError: Error {
+    case maxErrors
 }
