@@ -1,4 +1,4 @@
-# jddf-swift
+# jddf-swift [![][ci-badge]][ci-url]
 
 This package is a Swift implementation of **JSON Data Definition Format**. You
 can use this package to:
@@ -6,6 +6,9 @@ can use this package to:
 1. Validate input data against a schema,
 2. Get a list of validation errors from that input data, or
 3. Build your own tooling on top of JSON Data Definition Format
+
+[ci-badge]: https://github.com/jddf/jddf-swift/workflows/Swift%20CI/badge.svg?branch=master
+[ci-url]: https://github.com/jddf/jddf-swift/actions
 
 ## Installation
 
